@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Guerrilla Journalism"
+version = "1.0.0"
+id = "artifacts/guerrilla-journalism"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18923
+
+[services.development]
+run = "pnpm --filter @workspace/guerrilla-journalism run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/guerrilla-journalism", "run", "build" ]
+publicDir = "artifacts/guerrilla-journalism/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18923"
+BASE_PATH = "/"
