@@ -1383,6 +1383,9 @@ export default function App() {
               ))}
             </div>
 
+            {/* Keyword search across all case files */}
+            <KeywordSearch onOpenDoc={openLiveDoc} />
+
             {/* Live document browser — expands to show all MCP docs */}
             <LiveDocumentBrowser />
           </div>
