@@ -614,6 +614,296 @@ function LiveDocumentBrowser() {
   );
 }
 
+// --- KEYWORD SEARCH ---
+interface SearchHit {
+  key: string;
+  name: string;
+  snippet: string;
+}
+
+function KeywordSearch({
+  onOpenDoc,
+}: {
+  onOpenDoc: (key: string, name: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [inputValue, setInputValue] = useState("");
+  const [results, setResults] = useState<SearchHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searched, setSearched] = useState(false);
+
+  const runSearch = useCallback(async (term: string) => {
+    if (!term.trim()) return;
+    setLoading(true);
+    setError(null);
+    setSearched(true);
+    setQuery(term);
+    try {
+      const result = await mcpCall<{
+        results: Array<{ key: string; name: string; snippet: string }>;
+        count: number;
+      }>("search_documents_by_keyword", {
+        keyword: term,
+        case_number: CASE_NUMBER,
+        limit: 25,
+        snippet_chars: 400,
+      });
+      setResults(result.results ?? []);
+    } catch (e) {
+      setError(String(e));
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    runSearch(inputValue);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") runSearch(inputValue);
+  };
+
+  return (
+    <div
+      style={{
+        borderTop: "1px solid rgba(240,237,232,0.08)",
+        paddingTop: "32px",
+        marginTop: "32px",
+      }}
+    >
+      {/* Search header */}
+      <div style={{ marginBottom: "16px" }}>
+        <div
+          style={{
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: "11px",
+            letterSpacing: "0.25em",
+            color: "#7a7570",
+            marginBottom: "6px",
+          }}
+        >
+          FULL-TEXT DOCUMENT SEARCH
+        </div>
+        <div
+          style={{
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: "9px",
+            color: "#4a4542",
+            letterSpacing: "0.1em",
+          }}
+        >
+          Searches across all indexed case files — including documents you upload to the repository.
+          Results update automatically as new files are added.
+        </div>
+      </div>
+
+      {/* Search input */}
+      <form onSubmit={handleSubmit} style={{ display: "flex", gap: "0", marginBottom: "24px" }}>
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Search case documents — e.g. mandamus, transfer, ICWA, Wheeler..."
+          style={{
+            flex: 1,
+            backgroundColor: "#111111",
+            border: "1px solid rgba(240,237,232,0.15)",
+            borderRight: "none",
+            color: "#f0ede8",
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: "12px",
+            padding: "12px 16px",
+            outline: "none",
+          }}
+        />
+        <button
+          type="submit"
+          disabled={loading || !inputValue.trim()}
+          style={{
+            backgroundColor: loading ? "#222" : "#b5352a",
+            color: "#f0ede8",
+            border: "1px solid rgba(240,237,232,0.15)",
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: "11px",
+            letterSpacing: "0.15em",
+            padding: "12px 20px",
+            cursor: loading ? "wait" : "pointer",
+            whiteSpace: "nowrap",
+            transition: "background-color 0.15s",
+          }}
+        >
+          {loading ? "SEARCHING..." : "SEARCH →"}
+        </button>
+      </form>
+
+      {/* Quick suggestion pills */}
+      {!searched && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
+          {["mandamus", "transfer venue", "ICWA", "Wheeler Law", "Jimenez", "emergency relief", "Llano County", "malpractice"].map((term) => (
+            <button
+              key={term}
+              onClick={() => { setInputValue(term); runSearch(term); }}
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: "10px",
+                color: "#7a7570",
+                backgroundColor: "transparent",
+                border: "1px solid rgba(240,237,232,0.1)",
+                padding: "4px 10px",
+                cursor: "pointer",
+                letterSpacing: "0.08em",
+              }}
+            >
+              {term}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div
+          style={{
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: "11px",
+            color: "#b5352a",
+            padding: "12px",
+            border: "1px solid rgba(181,53,42,0.2)",
+            backgroundColor: "rgba(181,53,42,0.05)",
+            marginBottom: "16px",
+          }}
+        >
+          SEARCH ERROR: {error}
+        </div>
+      )}
+
+      {/* Results */}
+      {searched && !loading && !error && (
+        <div>
+          <div
+            style={{
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: "10px",
+              color: "#4a4542",
+              letterSpacing: "0.15em",
+              marginBottom: "16px",
+              paddingBottom: "12px",
+              borderBottom: "1px solid rgba(240,237,232,0.06)",
+            }}
+          >
+            {results.length === 0
+              ? `NO RESULTS FOR "${query.toUpperCase()}" — try a different keyword`
+              : `${results.length} RESULT${results.length !== 1 ? "S" : ""} FOR "${query.toUpperCase()}"`}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+            {results.map((hit, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: "16px 0",
+                  borderBottom: "1px solid rgba(240,237,232,0.06)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                {/* File name + VIEW */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontFamily: "'IBM Plex Mono', monospace",
+                        fontSize: "12px",
+                        color: "#c9953a",
+                        marginBottom: "4px",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {hit.name}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "'IBM Plex Mono', monospace",
+                        fontSize: "9px",
+                        color: "#4a4542",
+                        wordBreak: "break-all",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      {hit.key}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onOpenDoc(hit.key, hit.name)}
+                    style={{
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontSize: "10px",
+                      color: "#b5352a",
+                      background: "none",
+                      border: "1px solid rgba(181,53,42,0.25)",
+                      padding: "4px 10px",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    VIEW →
+                  </button>
+                </div>
+
+                {/* Snippet */}
+                {hit.snippet && (
+                  <div
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      fontSize: "12px",
+                      color: "#7a7570",
+                      lineHeight: 1.6,
+                      backgroundColor: "rgba(255,255,255,0.02)",
+                      padding: "10px 12px",
+                      borderLeft: "2px solid rgba(201,149,58,0.3)",
+                    }}
+                  >
+                    {hit.snippet}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {results.length > 0 && (
+            <div
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: "9px",
+                color: "#4a4542",
+                marginTop: "16px",
+                letterSpacing: "0.1em",
+              }}
+            >
+              Showing top {results.length} matches — refine your search for more specific results.
+              New documents uploaded to the repository will appear automatically.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- STYLES ---
 const customStyles = `
   html { scroll-behavior: smooth; }
@@ -700,6 +990,30 @@ export default function App() {
       const result = await mcpCall<{ text?: string; key: string }>(
         "get_document_by_name",
         { name: doc.key, case_number: CASE_NUMBER, max_chars: 60000 }
+      );
+      setViewerState((s) => ({
+        ...s,
+        content: result.text || "(No text content extracted for this file. PDF text sidecar may not yet exist.)",
+        loading: false,
+      }));
+    } catch (e) {
+      setViewerState((s) => ({ ...s, loading: false, error: String(e) }));
+    }
+  };
+
+  const openLiveDoc = async (key: string, name: string) => {
+    const fakeDoc = {
+      id: "SEARCH",
+      title: name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "),
+      caseRef: CASE_NUMBER,
+      type: key.endsWith(".pdf") ? "PDF" : "DOCUMENT",
+      key,
+    };
+    setViewerState({ isOpen: true, doc: fakeDoc, content: "", loading: true, error: null });
+    try {
+      const result = await mcpCall<{ text?: string; key: string }>(
+        "get_document_by_name",
+        { name: key, case_number: CASE_NUMBER, max_chars: 60000 }
       );
       setViewerState((s) => ({
         ...s,
