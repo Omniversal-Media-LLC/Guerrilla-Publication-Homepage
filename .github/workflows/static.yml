@@ -1,13 +1,11 @@
 name: Deploy static content to Pages
-
 on:
   # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
 
   # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-- name: 'notify vercel'
+  workflow_dispatch:- name: 'notify vercel'
   uses: 'vercel/repository-dispatch/actions/status@v1'
   with:
     name: Vercel - guerrilla-publication-homepage-api-server: lint
